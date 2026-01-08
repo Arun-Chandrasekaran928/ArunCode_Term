@@ -1,2 +1,2 @@
 # Python-Teaching-Club-Website
-A Website Fo
+A Website For Python Beginers
