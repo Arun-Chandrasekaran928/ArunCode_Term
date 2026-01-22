@@ -3,7 +3,7 @@ import random
 import sys
 import json
 
-#Seting FILESADMIN Not In Main() To Not Reset It Every Time
+#Seting FILESADMIN Not In Main() To Not Reset It Every Time.
 FILESADMIN = []
 
 #Adding Function main()
