@@ -15,7 +15,12 @@ def main():
     while True:
         #Try Loop Mainly Used To The Except Function
         try:
-            #Printing Options
+            #Printing Options:
+	    #
+	    #1) Login
+	    #2) Create Acount
+	    #3) Stay Logged Out (Guest)
+	    #4) Exit
             print("\n1) Login")
             print("2) Create Account")
             print("3) Stay Logged Out (Guest)")
