@@ -7,6 +7,7 @@ import sys
 import json
 import os
 import subprocess
+import readline  # For command history and tab completion
 
 # ---------- FILE PATH ----------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,6 +25,18 @@ def terminal(user):
     # Store file contents
     if "file_contents" not in user:
         user["file_contents"] = {}
+
+    # ---------- Readline Setup ----------
+    def completer(text, state):
+        # Autocomplete folders and files in cwd
+        options = [i for i in list(cwd["folders"].keys()) + cwd["files"] if i.startswith(text)]
+        if state < len(options):
+            return options[state]
+        else:
+            return None
+
+    readline.set_completer(completer)
+    readline.parse_and_bind("tab: complete")
 
     def prompt():
         path = "/".join(path_stack)
@@ -49,6 +62,10 @@ def terminal(user):
             # ---------- exit ----------
             elif command == "exit":
                 break
+
+            # ---------- clear ----------
+            elif command == "clear":
+                os.system('clear')
 
             # ---------- ls ----------
             elif command == "ls":

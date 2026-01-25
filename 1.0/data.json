@@ -6,7 +6,19 @@
         "usertype": "Admin",
         "fs": {
             "files": [],
-            "folders": {}
+            "folders": {
+                "Plan": {
+                    "files": [
+                        "hello.txt",
+                        "hi.txt"
+                    ],
+                    "folders": {}
+                }
+            }
+        },
+        "file_contents": {
+            "hello.txt": "",
+            "hi.txt": ""
         }
     },
     {
