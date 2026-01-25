@@ -2,7 +2,6 @@
 # main.py
 # =========================
 
-# ---------- IMPORTS ----------
 import random
 import sys
 import json
@@ -22,10 +21,22 @@ def terminal(user):
     cwd = user["fs"]
     path_stack = ["~"]
 
+    # Store file contents
+    if "file_contents" not in user:
+        user["file_contents"] = {}
+
     def prompt():
         path = "/".join(path_stack)
         symbol = "#" if user["sudo"] == "True" else "$"
         return f"{user['username']}@{hostname}/{user['usertype']}:{path} {symbol} "
+
+    # Recursive tree printer
+    def print_tree(directory, prefix=""):
+        for folder in directory["folders"]:
+            print(prefix + folder + "/")
+            print_tree(directory["folders"][folder], prefix + "  ")
+        for file in directory["files"]:
+            print(prefix + file)
 
     try:
         while True:
@@ -43,6 +54,14 @@ def terminal(user):
             elif command == "ls":
                 items = list(cwd["folders"].keys()) + cwd["files"]
                 print("  ".join(items) if items else "(directory empty)")
+
+            # ---------- pwd ----------
+            elif command == "pwd":
+                print("/".join(path_stack))
+
+            # ---------- tree ----------
+            elif command == "tree":
+                print_tree(cwd)
 
             # ---------- cd ----------
             elif command.startswith("cd"):
@@ -69,16 +88,31 @@ def terminal(user):
                     name += ".txt"
                 if name not in cwd["files"]:
                     cwd["files"].append(name)
+                    user["file_contents"][name] = ""
 
             # ---------- rm ----------
             elif command.startswith("rm "):
-                name = command.split(" ", 1)[1]
-                if not name.endswith(".txt"):
-                    name += ".txt"
-                if name in cwd["files"]:
-                    cwd["files"].remove(name)
+                parts = command.split()
+                if len(parts) == 2:
+                    name = parts[1]
+                    if not name.endswith(".txt"):
+                        name += ".txt"
+                    if name in cwd["files"]:
+                        cwd["files"].remove(name)
+                        if name in user["file_contents"]:
+                            del user["file_contents"][name]
+                    elif name in cwd["folders"]:
+                        print(f"rm: cannot remove '{name}': is a directory")
+                    else:
+                        print(f"rm: cannot remove '{name}': No such file")
+                elif len(parts) == 3 and parts[1] == "-r":
+                    folder = parts[2]
+                    if folder in cwd["folders"]:
+                        del cwd["folders"][folder]
+                    else:
+                        print(f"rm: cannot remove '{folder}': No such directory")
                 else:
-                    print("rm: no such file")
+                    print("rm: missing operand or invalid syntax")
 
             # ---------- makir ----------
             elif command.startswith("makir "):
@@ -94,10 +128,68 @@ def terminal(user):
 
                 if name not in cwd["files"]:
                     cwd["files"].append(name)
+                    user["file_contents"][name] = ""
 
                 temp_file = f"/tmp/{user['username']}_{name}"
-                open(temp_file, "a").close()
+                with open(temp_file, "w") as f:
+                    f.write(user["file_contents"].get(name, ""))
+
                 subprocess.run(["nano", temp_file])
+
+                # Save back content
+                with open(temp_file, "r") as f:
+                    user["file_contents"][name] = f.read()
+
+            # ---------- cat ----------
+            elif command.startswith("cat "):
+                name = command.split(" ", 1)[1]
+                if not name.endswith(".txt"):
+                    name += ".txt"
+                if name in cwd["files"]:
+                    print(user["file_contents"].get(name, ""))
+                else:
+                    print(f"cat: {name}: No such file")
+
+            # ---------- cp ----------
+            elif command.startswith("cp "):
+                parts = command.split()
+                if len(parts) == 3:
+                    src, dest = parts[1], parts[2]
+                    if not src.endswith(".txt"):
+                        src += ".txt"
+                    if not dest.endswith(".txt"):
+                        dest += ".txt"
+                    if src in cwd["files"]:
+                        if dest not in cwd["files"]:
+                            cwd["files"].append(dest)
+                        user["file_contents"][dest] = user["file_contents"].get(src, "")
+                    else:
+                        print(f"cp: cannot stat '{src}': No such file")
+                else:
+                    print("cp: missing operand or invalid syntax")
+
+            # ---------- mv ----------
+            elif command.startswith("mv "):
+                parts = command.split()
+                if len(parts) == 3:
+                    src, dest = parts[1], parts[2]
+                    if not src.endswith(".txt"):
+                        src += ".txt"
+                    if not dest.endswith(".txt"):
+                        dest += ".txt"
+                    if src in cwd["files"]:
+                        if dest not in cwd["files"]:
+                            cwd["files"].append(dest)
+                        user["file_contents"][dest] = user["file_contents"].get(src, "")
+                        cwd["files"].remove(src)
+                        if src in user["file_contents"]:
+                            del user["file_contents"][src]
+                    elif src in cwd["folders"]:
+                        cwd["folders"][dest] = cwd["folders"].pop(src)
+                    else:
+                        print(f"mv: cannot stat '{src}': No such file or directory")
+                else:
+                    print("mv: missing operand or invalid syntax")
 
             # ---------- ping ----------
             elif command.startswith("ping "):
