@@ -3,6 +3,7 @@
         "username": "Arun C.",
         "password": "927927",
         "sudo": "True",
+        "usertype": "Admin",
         "fs": {
             "files": [],
             "folders": {}
@@ -12,6 +13,7 @@
         "username": "Parthy C.",
         "password": "839839",
         "sudo": "True",
+        "usertype": "Security Manager",
         "fs": {
             "files": [],
             "folders": {}
