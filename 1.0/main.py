@@ -22,19 +22,29 @@ DATA_FILE = os.path.join(BASE_DIR, "data.json")
 
 
 # ---------- TERMINAL FUNCTION ----------
-# sudo        → True / False
-# prompt      → terminal prompt
-# username    → current user
-# files_list  → user's files
-# folder_list → user's folders
-def terminal(sudo, prompt, username, files_list, folder_list):
+# sudo     → True / False
+# username → current username
+# fs       → user's filesystem
+def terminal(sudo, username, fs):
 
-    # Try block to catch Ctrl+C
+    # Root directory
+    root = fs
+
+    # Current working directory
+    cwd = root
+
+    # Stack to track path
+    path_stack = []
+
+    hostname = "ArunCode.ca"
+
     try:
         # Forever loop so terminal stays open
         while True:
-            # Getting command input
-            command = input(prompt)
+
+            # Building path string
+            path = "/" + "/".join(path_stack) if path_stack else "~"
+            command = input(f"{username}@{hostname}:{path} $ ")
 
             # ---------- whoami ----------
             if command == "whoami":
@@ -46,42 +56,71 @@ def terminal(sudo, prompt, username, files_list, folder_list):
 
             # ---------- ls ----------
             elif command == "ls":
-                items = folder_list + files_list
+                items = list(cwd["folders"].keys()) + cwd["files"]
                 print("  ".join(items) if items else "(directory empty)")
+
+            # ---------- makir ----------
+            # Custom command to make a directory
+            elif command.startswith("makir "):
+                name = command.split(" ", 1)[1]
+
+                # Check if folder already exists
+                if name in cwd["folders"]:
+                    print("makir: folder exists")
+                else:
+                    cwd["folders"][name] = {
+                        "files": [],
+                        "folders": {}
+                    }
 
             # ---------- touch ----------
             elif command.startswith("touch "):
-                parts = command.split(" ", 1)
-                if len(parts) > 1:
-                    file_name = parts[1]
-                    if not file_name.endswith(".txt"):
-                        file_name += ".txt"
-                    files_list.append(file_name)
+                name = command.split(" ", 1)[1]
+                if not name.endswith(".txt"):
+                    name += ".txt"
+
+                if name in cwd["files"]:
+                    print("touch: file exists")
                 else:
-                    print("touch: missing file operand")
+                    cwd["files"].append(name)
 
             # ---------- rm ----------
             elif command.startswith("rm "):
-                parts = command.split(" ", 1)
-                if len(parts) > 1:
-                    file_name = parts[1]
-                    if not file_name.endswith(".txt"):
-                        file_name += ".txt"
-                    if file_name in files_list:
-                        files_list.remove(file_name)
-                        print(f"Removed {file_name}")
-                    else:
-                        print(f"rm: cannot remove '{file_name}': No such file")
-                else:
-                    print("rm: missing operand")
+                name = command.split(" ", 1)[1]
+                if not name.endswith(".txt"):
+                    name += ".txt"
 
-            # ---------- mkdir ----------
-            elif command.startswith("mkdir "):
-                parts = command.split(" ", 1)
-                if len(parts) > 1:
-                    folder_list.append(parts[1])
+                if name in cwd["files"]:
+                    cwd["files"].remove(name)
+                    print(f"Removed {name}")
                 else:
-                    print("mkdir: missing operand")
+                    print(f"rm: cannot remove '{name}'")
+
+            # ---------- cd ----------
+            elif command.startswith("cd"):
+                parts = command.split(" ", 1)
+
+                # cd or cd ~ → go home
+                if len(parts) == 1 or parts[1] == "~":
+                    cwd = root
+                    path_stack = []
+
+                # cd .. → go back
+                elif parts[1] == "..":
+                    if path_stack:
+                        path_stack.pop()
+                        cwd = root
+                        for p in path_stack:
+                            cwd = cwd["folders"][p]
+
+                # cd folder_name
+                else:
+                    folder = parts[1]
+                    if folder in cwd["folders"]:
+                        cwd = cwd["folders"][folder]
+                        path_stack.append(folder)
+                    else:
+                        print(f"cd: no such directory: {folder}")
 
             # ---------- sudo ----------
             elif command == "sudo":
@@ -91,7 +130,6 @@ def terminal(sudo, prompt, username, files_list, folder_list):
             else:
                 print(f"{command}: command not found")
 
-    # Catch Ctrl+C inside terminal
     except KeyboardInterrupt:
         print("\nReturning to Main Menu...")
         return
@@ -100,13 +138,8 @@ def terminal(sudo, prompt, username, files_list, folder_list):
 # ---------- MAIN FUNCTION ----------
 def main():
 
-    hostname = "ArunCode.ca"
-    pwd = "~/"
-
-    # Forever loop for main menu
     while True:
         try:
-            # ---------- MENU ----------
             print("\n1) Login")
             print("2) Create Account")
             print("3) Stay Logged Out (Guest)")
@@ -119,85 +152,58 @@ def main():
                 USER = input("user: ")
                 PASS = input("pass: ")
 
-                try:
-                    # Load database
-                    with open(DATA_FILE, "r") as f:
-                        accounts = json.load(f)
+                with open(DATA_FILE, "r") as f:
+                    accounts = json.load(f)
 
-                    # Find matching account
-                    user = next(
-                        (a for a in accounts
-                         if a["username"] == USER and a["password"] == PASS),
-                        None
-                    )
+                user = next(
+                    (a for a in accounts
+                     if a["username"] == USER and a["password"] == PASS),
+                    None
+                )
 
-                    # If user found
-                    if user:
-                        is_sudo = user["sudo"] == "True"
-                        symbol = "#" if is_sudo else "$"
+                if user:
+                    terminal(user["sudo"] == "True", USER, user["fs"])
 
-                        # Start terminal with ACCOUNT-SPECIFIC storage
-                        terminal(
-                            is_sudo,
-                            f"{USER}@{hostname}:{pwd} {symbol} ",
-                            USER,
-                            user["files"],
-                            user["folders"]
-                        )
-
-                        # Save changes after logout
-                        with open(DATA_FILE, "w") as f:
-                            json.dump(accounts, f, indent=4)
-
-                    else:
-                        print("ERROR: Invalid credentials")
-
-                except FileNotFoundError:
-                    print("ERROR: Database file not found")
+                    # Save filesystem after logout
+                    with open(DATA_FILE, "w") as f:
+                        json.dump(accounts, f, indent=4)
+                else:
+                    print("ERROR: Invalid credentials")
 
             # ---------- CREATE ACCOUNT ----------
             elif choice == "2":
                 NEW_USER = input("Choose Username: ")
                 NEW_PASS = input("Choose Password: ")
 
-                try:
-                    with open(DATA_FILE, "r") as f:
-                        accounts = json.load(f)
+                with open(DATA_FILE, "r") as f:
+                    accounts = json.load(f)
 
-                    # Check username
-                    if any(a["username"] == NEW_USER for a in accounts):
-                        print("ERROR: Username already taken")
-                    else:
-                        # Create new account WITH files and folders
-                        accounts.append({
-                            "username": NEW_USER,
-                            "password": NEW_PASS,
-                            "sudo": "False",
+                if any(a["username"] == NEW_USER for a in accounts):
+                    print("ERROR: Username already taken")
+                else:
+                    accounts.append({
+                        "username": NEW_USER,
+                        "password": NEW_PASS,
+                        "sudo": "False",
+                        "fs": {
                             "files": [],
-                            "folders": []
-                        })
+                            "folders": {}
+                        }
+                    })
 
-                        with open(DATA_FILE, "w") as f:
-                            json.dump(accounts, f, indent=4)
+                    with open(DATA_FILE, "w") as f:
+                        json.dump(accounts, f, indent=4)
 
-                        print(f"Account for {NEW_USER} created successfully")
-
-                except FileNotFoundError:
-                    print("ERROR: Database file not found")
+                    print(f"Account for {NEW_USER} created successfully")
 
             # ---------- GUEST ----------
             elif choice == "3":
-                guest_files = []
-                guest_folders = []
                 guest_name = "guest" + str(random.randint(1000, 9999))
-
-                terminal(
-                    False,
-                    f"{guest_name}@{hostname}:{pwd} $ ",
-                    guest_name,
-                    guest_files,
-                    guest_folders
-                )
+                guest_fs = {
+                    "files": [],
+                    "folders": {}
+                }
+                terminal(False, guest_name, guest_fs)
 
             # ---------- EXIT ----------
             elif choice == "4":
@@ -207,7 +213,6 @@ def main():
             else:
                 print("Invalid option")
 
-        # Ctrl+C in main menu
         except KeyboardInterrupt:
             print("\nExiting Program...")
             sys.exit()

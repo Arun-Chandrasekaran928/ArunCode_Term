@@ -3,21 +3,18 @@
         "username": "Arun C.",
         "password": "927927",
         "sudo": "True",
-        "files": [],
-        "folders": []
+        "fs": {
+            "files": [],
+            "folders": {}
+        }
     },
     {
         "username": "Parthy C.",
         "password": "839839",
         "sudo": "True",
-        "files": [],
-        "folders": []
-    },
-    {
-        "username": "Suja C.",
-        "password": "223223",
-        "sudo": "True",
-        "files": [],
-        "folders": []
+        "fs": {
+            "files": [],
+            "folders": {}
+        }
     }
 ]
