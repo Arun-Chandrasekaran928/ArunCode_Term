@@ -2,16 +2,61 @@
 # main.py
 # =========================
 
-import random
-import sys
 import json
 import os
-import subprocess
+import random
 import readline  # For command history and tab completion
+import subprocess
+import sys
+from importlib import resources
+from pathlib import Path
 
 # ---------- FILE PATH ----------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(BASE_DIR, "data.json")
+BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_DATA_FILE = BASE_DIR / "data.json"
+DATA_FILE = Path(
+    os.getenv(
+        "ARUNCODE_TERM_DATA",
+        Path.home() / ".aruncode_term" / "data.json",
+    )
+)
+PACKAGE_NAME = __package__ or "ArunCode_Term"
+
+
+def _read_packaged_accounts():
+    try:
+        packaged_path = resources.files(PACKAGE_NAME).joinpath("data.json")
+        if packaged_path.is_file():
+            return packaged_path.read_text(encoding="utf-8")
+        packaged_path = resources.files(PACKAGE_NAME).joinpath("Data", "user_data.json")
+        if packaged_path.is_file():
+            return packaged_path.read_text(encoding="utf-8")
+    except ModuleNotFoundError:
+        return None
+    return None
+
+
+# ---------- DATA ----------
+def load_accounts():
+    if not DATA_FILE.exists():
+        DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if DEFAULT_DATA_FILE.exists():
+            DATA_FILE.write_text(DEFAULT_DATA_FILE.read_text(), encoding="utf-8")
+        else:
+            packaged_accounts = _read_packaged_accounts()
+            if packaged_accounts is not None:
+                DATA_FILE.write_text(packaged_accounts, encoding="utf-8")
+            else:
+                DATA_FILE.write_text("[]", encoding="utf-8")
+    try:
+        return json.loads(DATA_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+
+
+def save_accounts(accounts):
+    DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+    DATA_FILE.write_text(json.dumps(accounts, indent=4), encoding="utf-8")
 
 # ---------- TERMINAL ----------
 def terminal(user):
@@ -245,8 +290,7 @@ def main():
                 u = input("user: ")
                 p = input("pass: ")
 
-                with open(DATA_FILE, "r") as f:
-                    accounts = json.load(f)
+                accounts = load_accounts()
 
                 user = next(
                     (a for a in accounts if a["username"] == u and a["password"] == p),
@@ -255,8 +299,7 @@ def main():
 
                 if user:
                     terminal(user)
-                    with open(DATA_FILE, "w") as f:
-                        json.dump(accounts, f, indent=4)
+                    save_accounts(accounts)
                 else:
                     print("ERROR: Invalid credentials")
 
@@ -266,8 +309,7 @@ def main():
                 p = input("Choose Password: ")
                 t = input("User Type: ")
 
-                with open(DATA_FILE, "r") as f:
-                    accounts = json.load(f)
+                accounts = load_accounts()
 
                 if any(a["username"] == u for a in accounts):
                     print("ERROR: Username exists")
@@ -279,8 +321,7 @@ def main():
                         "usertype": t,
                         "fs": {"files": [], "folders": {}}
                     })
-                    with open(DATA_FILE, "w") as f:
-                        json.dump(accounts, f, indent=4)
+                    save_accounts(accounts)
                     print("Account created")
 
             # ---------- GUEST ----------
