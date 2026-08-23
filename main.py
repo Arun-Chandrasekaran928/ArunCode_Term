@@ -1,22 +1,59 @@
-# =========================
-# main.py
-# =========================
-
 import random
 import sys
 import json
 import os
 import subprocess
-import readline  # For command history and tab completion
+import readline
+import urllib.request
+from werkzeug.security import check_password_hash
 
-# ---------- FILE PATH ----------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(BASE_DIR, "data.json")
+# ---------- DATA URL CONFIGURATION ----------
+USER_DATA_URL = "http://192.168.1.110:5000/users.json"
+STORAGE_URL = "http://192.168.1.110:5000/filesfoldors.json"
+SAVE_URL = "http://192.168.1.110:5000/save_files"
 
-# ---------- TERMINAL ----------
+def load_network_users():
+    try:
+        import urllib.request, json
+        with urllib.request.urlopen(USER_DATA_URL, timeout=5) as response:
+            return json.loads(response.read().decode())
+    except Exception as e:
+        print(f"\n[!] Auth Network Error: {e}")
+        return {}
+
+
+# ---------- DATA URL CONFIGURATION ----------
+
+def save_network_user(username, user_session):
+    """Sends updated file system and file contents back to the central server."""
+    try:
+        db_user = username.replace(" ", "")
+        # Construct payload with updated fs and file_contents
+        payload = {
+            "username": db_user,
+            "fs": user_session["fs"],
+            "file_contents": user_session["file_contents"]
+        }
+        data = json.dumps(payload).encode("utf-8")
+        
+        # Point to a save endpoint on your server
+        save_url = "http://192.168.1"
+        req = urllib.request.Request(save_url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+        
+        with urllib.request.urlopen(req, timeout=5) as response:
+            if response.status == 200:
+                return True
+    except Exception as e:
+        print(f"\n[!] Failed to sync changes to server: {e}")
+    return False  # For command history and tab completion
+import urllib.request  # Add this to fetch passwords over the network
+
+# ---------- DATA URL CONFIGURATION ----------
+# Replaced local DATA_FILE with your remote server endpoint
+
 def terminal(user):
-
     hostname = "ArunCode.com"
+
 
     # Current directory reference (starts at root)
     cwd = user["fs"]
@@ -61,6 +98,8 @@ def terminal(user):
 
             # ---------- exit ----------
             elif command == "exit":
+                print("Syncing files with central server...")
+                save_network_user(user["username"], user)
                 break
 
             # ---------- clear ----------
@@ -245,18 +284,25 @@ def main():
                 u = input("user: ")
                 p = input("pass: ")
 
-                with open(DATA_FILE, "r") as f:
-                    accounts = json.load(f)
+                users = load_network_users()
+                db_user = u.replace(" ", "")
 
-                user = next(
-                    (a for a in accounts if a["username"] == u and a["password"] == p),
-                    None
-                )
-
-                if user:
-                    terminal(user)
-                    with open(DATA_FILE, "w") as f:
-                        json.dump(accounts, f, indent=4)
+                if db_user in users:
+                    # Verify using scrypt hash verification
+                    if check_password_hash(users[db_user]["password"], p):
+                        print("Login successful!")
+                        
+                        # Set up user session formatting for the terminal() function
+                        user_session = {
+                            "username": u,
+                            "usertype": users[db_user]["role"].capitalize(),
+                            "sudo": "True" if users[db_user]["role"] == "admin" else "False",
+                            "fs": users[db_user].get("fs", {"files": [], "folders": {"Plan": {"files": ["hello.txt", "hi.txt"], "folders": {}}}}),
+                            "file_contents": users[db_user].get("file_contents", {"hello.txt": "Hi\n", "hi.txt": "Hello\n"})
+                        }
+                        terminal(user_session)
+                    else:
+                        print("ERROR: Invalid credentials")
                 else:
                     print("ERROR: Invalid credentials")
 
@@ -266,8 +312,9 @@ def main():
                 p = input("Choose Password: ")
                 t = input("User Type: ")
 
-                with open(DATA_FILE, "r") as f:
-                    accounts = json.load(f)
+                users = load_network_users()
+                print("[!] Account creation is disabled while connected to the central server.")
+                continue # Skip the rest of the local save logic
 
                 if any(a["username"] == u for a in accounts):
                     print("ERROR: Username exists")
