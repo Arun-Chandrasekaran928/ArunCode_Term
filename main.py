@@ -7,10 +7,39 @@ import readline
 import urllib.request
 from werkzeug.security import check_password_hash
 
+def input_masked(prompt="pass: "):
+    import sys, tty, termios
+    print(prompt, end="", flush=True)
+    password = ""
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        while True:
+            ch = sys.stdin.read(1)
+            if ch in ["\r", "\n"]:
+                break
+            elif ch == "\x7f":  # Backspace handle
+                if len(password) > 0:
+                    password = password[:-1]
+                    sys.stdout.write("\b \b")
+                    sys.stdout.flush()
+            elif ch == "\x03":  # Ctrl+C abort handler
+                raise KeyboardInterrupt
+            else:
+                password += ch
+                sys.stdout.write("*")
+                sys.stdout.flush()
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    print()
+    return password
+
+
 # ---------- DATA URL CONFIGURATION ----------
-USER_DATA_URL = "http://192.168.1.110:5000/users.json"
-STORAGE_URL = "http://192.168.1.110:5000/filesfoldors.json"
-SAVE_URL = "http://192.168.1.110:5000/save_files"
+USER_DATA_URL = "http://192.168.1.110:5000/scrypt:32768:8:1$unWMjmI0PN1WC29L$9e71c570a6064f50dc5ba5832007d645d3dbad7b13015f39fd0e30ff17f9d7bad4054e6b5b9c8f2c2231a3dd2719d409f2f82be3ed6f4f946bf1d6a14c702db6_users.json"
+STORAGE_URL = "http://192.168.1.110:5000/scrypt:32768:8:1$unWMjmI0PN1WC29L$9e71c570a6064f50dc5ba5832007d645d3dbad7b13015f39fd0e30ff17f9d7bad4054e6b5b9c8f2c2231a3dd2719d409f2f82be3ed6f4f946bf1d6a14c702db6_filesfoldors.json"
+SAVE_URL = "http://192.168.1.110:5000/scrypt:32768:8:1$unWMjmI0PN1WC29L$9e71c570a6064f50dc5ba5832007d645d3dbad7b13015f39fd0e30ff17f9d7bad4054e6b5b9c8f2c2231a3dd2719d409f2f82be3ed6f4f946bf1d6a14c702db6/save_files"
 
 def load_network_users():
     try:
@@ -282,14 +311,21 @@ def main():
             # ---------- LOGIN ----------
             if choice == "1":
                 u = input("user: ")
-                p = input("pass: ")
+                p = input_masked("pass: ")
 
                 users = load_network_users()
                 db_user = u.replace(" ", "")
 
                 if db_user in users:
-                    # Verify using scrypt hash verification
                     if check_password_hash(users[db_user]["password"], p):
+                        # Extract the user role profile
+                        user_role = users[db_user].get("role", "").lower()
+                        if user_role in ["admin", "security"]:
+                            user_pin = input_masked("PIN: ")
+                            if user_pin != users[db_user].get("pin"):
+                                print("ERROR: Invalid PIN credentials")
+                                continue
+                        
                         print("Login successful!")
                         
                         # Set up user session formatting for the terminal() function
